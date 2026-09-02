@@ -10,6 +10,7 @@
 #include "lv_text_private.h"
 #include "lv_text_ap.h"
 
+
 /*********************
  *      DEFINES
  *********************/
@@ -211,7 +212,7 @@ bool lv_text_is_cmd(lv_text_cmd_state_t * state, uint32_t c)
  * @param font pointer to a font
  * @param letter_space letter space
  * @param max_width max width of the text (break the lines to fit this size). Set COORD_MAX to avoid line breaks
- * @param flags settings for the text from 'txt_flag_type' enum
+ * @param flag  settings for the text from 'txt_flag_type' enum
  * @param[out] word_w_ptr width (in pixels) of the parsed word. May be NULL.
  * @param cmd_state Pointer to a lv_text_cmd_state_t variable which stored the current state of command processing
  * @return the index of the first char of the next word (in byte index not letter index. With UTF-8 they are different)
@@ -428,6 +429,14 @@ int32_t lv_text_get_width(const char * txt, uint32_t length, const lv_font_t * f
     if(txt == NULL) return 0;
     if(font == NULL) return 0;
     if(txt[0] == '\0') return 0;
+
+    /* Note: For HarfBuzz fonts, we intentionally use the character-by-character
+     * path below rather than calling lv_hb_shape_text(). This avoids expensive
+     * HarfBuzz shaping during layout/size calculation (lv_text_get_size), since
+     * the render path in lv_draw_label.c will shape the text again anyway.
+     * The per-character widths slightly overestimate for complex scripts (conjuncts
+     * merge multiple chars into one glyph) but this only affects layout sizing,
+     * not visual correctness — the render path uses HarfBuzz for precise placement. */
 
     uint32_t i                = 0;
     int32_t width             = 0;
