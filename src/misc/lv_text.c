@@ -461,7 +461,8 @@ int32_t lv_text_get_width(const char * txt, uint32_t length, const lv_font_t * f
         }
 
         if(!has_recolor) {
-            uint32_t byte_len = length ? length : lv_strlen(txt);
+            /*length is the byte count to measure; zero means an empty span*/
+            uint32_t byte_len = length;
             while(byte_len > 0 && (txt[byte_len - 1] == '\n' || txt[byte_len - 1] == '\r')) {
                 byte_len--;
             }

@@ -164,9 +164,11 @@ void test_freetype_harfbuzz_label_width_matches_advances(void)
 
 void test_freetype_harfbuzz_hit_test_round_trip(void)
 {
-    /*Where a character is drawn and where a click lands on it are computed
-     *by separate code. Asking for a character's position and clicking it
-     *must return the same character, or text selection picks the wrong one.*/
+    /*Where a character is drawn and where a click on it lands are computed by
+     *separate code, and they have to agree. A cluster is a letter plus the
+     *marks that attach to it; it is one unit on screen, so a click anywhere
+     *inside it selects the character the cluster starts at. "Marathi" below
+     *has two such clusters, each a consonant with a vowel sign.*/
     const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
 
     lv_obj_t * label = lv_label_create(lv_screen_active());
@@ -175,12 +177,33 @@ void test_freetype_harfbuzz_hit_test_round_trip(void)
     lv_label_set_text(label, txt);
     lv_obj_update_layout(label);
 
-    for(uint32_t ch = 0; ch < 3; ch++) {
+    int32_t prev_x = -1;
+    for(uint32_t ch = 0; ch < 5; ch++) {
         lv_point_t pos;
         lv_label_get_letter_pos(label, ch, &pos);
-        pos.x += 1; /*inside the glyph rather than on its edge*/
-        TEST_ASSERT_EQUAL_UINT32(ch, lv_label_get_letter_on(label, &pos, false));
+
+        /*Characters are laid out left to right, so positions never go back*/
+        TEST_ASSERT_GREATER_OR_EQUAL_INT32(prev_x, pos.x);
+        prev_x = pos.x;
+
+        lv_point_t click = pos;
+        click.x += 1;
+        uint32_t hit = lv_label_get_letter_on(label, &click, false);
+
+        /*The hit is this character or the start of the cluster it joined*/
+        TEST_ASSERT_LESS_OR_EQUAL_UINT32(ch, hit);
+
+        /*Clicking the hit character must return the same character again*/
+        lv_point_t again;
+        lv_label_get_letter_pos(label, hit, &again);
+        again.x += 1;
+        TEST_ASSERT_EQUAL_UINT32(hit, lv_label_get_letter_on(label, &again, false));
     }
+
+    /*The first character is always reachable at the start of the line*/
+    lv_point_t origin;
+    lv_label_get_letter_pos(label, 0, &origin);
+    TEST_ASSERT_EQUAL_INT32(0, origin.x);
 }
 
 void test_freetype_harfbuzz_recolor_is_not_shaped(void)
