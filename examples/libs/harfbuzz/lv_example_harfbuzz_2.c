@@ -20,7 +20,7 @@ static lv_obj_t * add_script_section(lv_obj_t * parent, const lv_font_t * font,
     lv_obj_t * lbl = lv_label_create(parent);
     lv_obj_set_style_text_font(lbl, font, 0);
     lv_obj_set_width(lbl, lv_pct(100));
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_MODE_WRAP);
     lv_label_set_text(lbl, sample);
     return lbl;
 }
