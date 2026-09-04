@@ -413,6 +413,19 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
             while(line_byte_len > 0 && (bidi_txt[line_byte_len - 1] == '\n' || bidi_txt[line_byte_len - 1] == '\r')) {
                 line_byte_len--;
             }
+            /* Recolor markers are consumed by the character loop below, so a
+             * line carrying them is rendered there: correct colours and text,
+             * without shaping, rather than the markers drawn as glyphs. */
+            bool has_recolor = false;
+            if(dsc->flag & LV_TEXT_FLAG_RECOLOR) {
+                for(uint32_t ri = 0; ri < line_byte_len; ri++) {
+                    if(bidi_txt[ri] == LV_TXT_COLOR_CMD[0]) {
+                        has_recolor = true;
+                        break;
+                    }
+                }
+            }
+
             /* When BIDI is enabled, bidi_txt is always in visual order (either
              * pre-bided or processed by lv_bidi_process_paragraph above).
              * Force LTR in HarfBuzz to prevent double-reordering. */
@@ -421,7 +434,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
 #else
             lv_base_dir_t hb_dir = LV_BASE_DIR_AUTO;
 #endif
-            lv_hb_shaped_text_t * shaped = lv_hb_shape_text(font, bidi_txt, line_byte_len, hb_dir);
+            lv_hb_shaped_text_t * shaped = has_recolor ? NULL : lv_hb_shape_text(font, bidi_txt, line_byte_len, hb_dir);
             if(shaped) {
                 /*Compute line width from shaped result and apply alignment.
                  *This avoids a separate lv_text_get_width() call which would shape the text again.*/

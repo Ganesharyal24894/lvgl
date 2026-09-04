@@ -277,10 +277,11 @@ correctly. The scripts listed above are only the most common examples.
   where initial/medial/final letter forms depend on logical adjacency).
   Indic scripts and Hebrew are not affected.
 
-- **Recolor not supported**: The `LV_TEXT_FLAG_RECOLOR` feature
-  (inline color markers such as `#ff0000 `) is not processed in the
-  HarfBuzz rendering path. Recolor markers will be rendered as visible
-  text. Use separate styled labels instead.
+- **Recolor disables shaping for that line**: The `LV_TEXT_FLAG_RECOLOR`
+  feature (inline color markers such as `#ff0000 `) is handled by the
+  character-by-character path. A line containing a marker is rendered
+  there, so the colours are correct but the line is not shaped. Use
+  separate styled labels to combine recolouring with shaped scripts.
 
 - **Line-breaking width approximation**: Line-breaking decisions use
   per-glyph width sums rather than HarfBuzz-shaped widths. For scripts
