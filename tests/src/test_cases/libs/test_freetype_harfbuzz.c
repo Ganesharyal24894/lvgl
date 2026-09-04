@@ -168,7 +168,10 @@ void test_freetype_harfbuzz_hit_test_round_trip(void)
      *separate code, and they have to agree. A cluster is a letter plus the
      *marks that attach to it; it is one unit on screen, so a click anywhere
      *inside it selects the character the cluster starts at. "Marathi" below
-     *has two such clusters, each a consonant with a vowel sign.*/
+     *has two such clusters, each a consonant with a vowel sign.
+     *The string is deliberately free of conjuncts: where consonants fuse,
+     *a prefix can measure wider than the fused result, so the position
+     *check below would not hold.*/
     const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
 
     lv_obj_t * label = lv_label_create(lv_screen_active());

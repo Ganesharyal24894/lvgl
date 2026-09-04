@@ -275,13 +275,17 @@ correctly. The scripts listed above are only the most common examples.
   This is correct for glyph positioning but may produce incorrect
   contextual forms for scripts with joining behavior (e.g. Arabic,
   where initial/medial/final letter forms depend on logical adjacency).
-  Indic scripts and Hebrew are not affected.
+  Indic scripts and Hebrew are not affected. Width measurement shapes
+  the text in logical order, so for RTL text under BIDI the measured
+  and drawn widths can differ for the same reason.
 
 - **Recolor disables shaping for that line**: The `LV_TEXT_FLAG_RECOLOR`
   feature (inline color markers such as `#ff0000 `) is handled by the
   character-by-character path. A line containing a marker is rendered
-  there, so the colours are correct but the line is not shaped. Use
-  separate styled labels to combine recolouring with shaped scripts.
+  there, so the colours are correct but the line is not shaped. Any
+  `#` in the line counts, not only a valid command, so a stray one
+  costs that line its shaping. Use separate styled labels to combine
+  recolouring with shaped scripts.
 
 - **Line-breaking width approximation**: Line-breaking decisions use
   per-glyph width sums rather than HarfBuzz-shaped widths. For scripts

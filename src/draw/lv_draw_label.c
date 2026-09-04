@@ -767,9 +767,14 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
  **********************/
 
 /**
- * Convert a hexadecimal characters to a number (0..15)
- * @param hex Pointer to a hexadecimal character (0..9, A..F)
- * @return the numerical value of `hex` or 0 on error
+ * Shift one line horizontally for centre or right alignment.
+ * @param pos        pen position for the line, moved in place
+ * @param coords     the label's area
+ * @param align      alignment of the text
+ * @param txt        start of the line
+ * @param len        length of the line in bytes
+ * @param font       font the line is drawn with
+ * @param attributes text attributes used to measure the line
  */
 static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text_align_t align,
                              const char * txt, uint32_t len, const lv_font_t * font,
@@ -789,6 +794,11 @@ static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text
     }
 }
 
+/**
+ * Convert a hexadecimal characters to a number (0..15)
+ * @param hex Pointer to a hexadecimal character (0..9, A..F)
+ * @return the numerical value of `hex` or 0 on error
+ */
 static uint8_t hex_char_to_num(char hex)
 {
     if(hex >= '0' && hex <= '9') return hex - '0';
