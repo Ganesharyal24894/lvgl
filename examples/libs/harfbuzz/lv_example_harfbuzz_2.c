@@ -64,9 +64,9 @@ void lv_example_harfbuzz_2(void)
 
     if(!font_bengali || !font_telugu || !font_thai) {
         LV_LOG_ERROR("failed to create one or more fonts");
-        if(font_bengali) lv_freetype_font_delete(font_bengali);
-        if(font_telugu)  lv_freetype_font_delete(font_telugu);
-        if(font_thai)    lv_freetype_font_delete(font_thai);
+        lv_freetype_font_delete(font_bengali);
+        lv_freetype_font_delete(font_telugu);
+        lv_freetype_font_delete(font_thai);
         lv_obj_t * lbl = lv_label_create(lv_screen_active());
         lv_label_set_text(lbl, "Font file(s) not found.\n"
                           "Run this example from the LVGL root so the bundled\n"
