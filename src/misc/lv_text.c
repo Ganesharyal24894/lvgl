@@ -449,6 +449,7 @@ int32_t lv_text_get_width(const char * txt, uint32_t length, const lv_font_t * f
      *would size the label wider than its own text and put hit-testing on
      *different coordinates than rendering. The shaped result is cached, so
      *the extra call is cheap on repeat.*/
+#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
     if(lv_freetype_is_harfbuzz_font(font)) {
         bool has_recolor = false;
         if(attributes->text_flags & LV_TEXT_FLAG_RECOLOR) {
@@ -487,6 +488,7 @@ int32_t lv_text_get_width(const char * txt, uint32_t length, const lv_font_t * f
             }
         }
     }
+#endif /*LV_USE_FREETYPE && LV_USE_HARFBUZZ*/
 
     uint32_t i                = 0;
     int32_t width             = 0;
