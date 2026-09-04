@@ -51,7 +51,7 @@ extern "C" {
 #define LV_FREETYPE_FONT_DSC_HAS_MAGIC_NUM(dsc) ((dsc)->magic_num == LV_FREETYPE_FONT_DSC_MAGIC_NUM)
 #define LV_ASSERT_FREETYPE_FONT_DSC(dsc)                                                   \
     do {                                                                                   \
-        LV_ASSERT_NULL(dsc);                                                               \
+        LV_ASSERT(dsc != NULL);                                                            \
         LV_ASSERT_FORMAT_MSG(LV_FREETYPE_FONT_DSC_HAS_MAGIC_NUM(dsc),                      \
                              "Invalid font descriptor: 0x%" LV_PRIx32, (dsc)->magic_num);  \
     } while (0)
@@ -152,7 +152,7 @@ typedef struct _lv_freetype_font_dsc_t {
     FTC_FaceID face_id;
     lv_font_kerning_t kerning;
 #if LV_USE_HARFBUZZ
-    bool skip_harfbuzz;             /**< If true, bypass HarfBuzz shaping for this font instance. */
+    bool use_harfbuzz;              /**< Enable HarfBuzz shaping for this font instance. Off by default. */
 #endif
 } lv_freetype_font_dsc_t;
 

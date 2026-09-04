@@ -65,7 +65,10 @@ lv_hb_shaped_text_t * lv_hb_shape_text(const lv_font_t * font, const char * text
 void lv_hb_shaped_text_destroy(lv_hb_shaped_text_t * shaped);
 
 /**
- * Check if a font is a FreeType font that can use HarfBuzz shaping.
+ * Check whether text in this font goes through HarfBuzz shaping rather than
+ * LVGL's character-by-character path. Shaping is required for scripts where
+ * glyphs join, reorder or stack (Devanagari, Arabic, Thai and others) and is
+ * enabled per font with lv_freetype_font_set_use_harfbuzz().
  * @param font pointer to an LVGL font
  * @return true if the font is a FreeType font with HarfBuzz enabled
  */
@@ -74,6 +77,19 @@ bool lv_freetype_is_harfbuzz_font(const lv_font_t * font);
 /**********************
  *      MACROS
  **********************/
+
+#else /* LV_USE_FREETYPE && LV_USE_HARFBUZZ */
+
+/**
+ * Always declared so callers can branch without preprocessor conditionals.
+ * @param font pointer to an LVGL font
+ * @return false
+ */
+static inline bool lv_freetype_is_harfbuzz_font(const lv_font_t * font)
+{
+    LV_UNUSED(font);
+    return false;
+}
 
 #endif /* LV_USE_FREETYPE && LV_USE_HARFBUZZ */
 

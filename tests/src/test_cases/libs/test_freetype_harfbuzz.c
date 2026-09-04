@@ -24,6 +24,7 @@ void setUp(void)
                                               32,
                                               LV_FREETYPE_FONT_STYLE_NORMAL);
     TEST_ASSERT_NOT_NULL(font_devanagari);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, true);
 }
 
 void tearDown(void)
@@ -40,9 +41,9 @@ void test_freetype_font_is_harfbuzz(void)
     TEST_ASSERT_TRUE(lv_freetype_is_harfbuzz_font(font_devanagari));
 
     /*The per-font toggle disables and re-enables shaping*/
-    lv_freetype_font_set_harfbuzz(font_devanagari, false);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, false);
     TEST_ASSERT_FALSE(lv_freetype_is_harfbuzz_font(font_devanagari));
-    lv_freetype_font_set_harfbuzz(font_devanagari, true);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, true);
     TEST_ASSERT_TRUE(lv_freetype_is_harfbuzz_font(font_devanagari));
 
     /*Built-in bitmap fonts are never HarfBuzz fonts*/
@@ -100,6 +101,186 @@ static void create_devanagari_labels(void)
     add_label(cont, "मराठी भाषा ळ");            /*Marathi, incl. retroflex LLA*/
 }
 
+/*Shaping turns a string into positioned glyphs. One input character can
+ *produce several glyphs, and several characters can fuse into one glyph, so
+ *glyphs are grouped by "cluster": the character they came from. Spacing
+ *belongs between clusters, never between a glyph and the marks attached to
+ *it. This mirrors the sum the draw path performs.*/
+static int32_t shaped_advance_sum(const char * txt, int32_t letter_space)
+{
+    lv_hb_shaped_text_t * shaped = lv_hb_shape_text(font_devanagari, txt, lv_strlen(txt), LV_BASE_DIR_AUTO);
+    TEST_ASSERT_NOT_NULL(shaped);
+
+    int32_t sum = 0;
+    for(uint32_t i = 0; i < shaped->count; i++) {
+        bool cluster_end = (i + 1 >= shaped->count) || (shaped->glyphs[i + 1].cluster != shaped->glyphs[i].cluster);
+        sum += shaped->glyphs[i].x_advance + (cluster_end ? letter_space : 0);
+    }
+    if(sum > 0) sum -= letter_space;
+
+    lv_hb_shaped_text_destroy(shaped);
+    return sum;
+}
+
+void test_freetype_harfbuzz_letter_space_per_cluster(void)
+{
+    /*"Hindi" in Devanagari. It has more glyphs than clusters because the
+     *vowel sign is a separate glyph attached to its consonant. Raising
+     *letter_space must widen the line once per cluster gap, not once per
+     *glyph, or the vowel sign drifts away from the letter it belongs to.*/
+    const char * txt = "\xe0\xa4\xb9\xe0\xa4\xbf\xe0\xa4\xa8\xe0\xa5\x8d\xe0\xa4\xa6\xe0\xa5\x80";
+
+    lv_hb_shaped_text_t * shaped = lv_hb_shape_text(font_devanagari, txt, lv_strlen(txt), LV_BASE_DIR_AUTO);
+    TEST_ASSERT_NOT_NULL(shaped);
+    uint32_t glyphs = shaped->count;
+    uint32_t clusters = 0;
+    for(uint32_t i = 0; i < shaped->count; i++) {
+        if(i == 0 || shaped->glyphs[i].cluster != shaped->glyphs[i - 1].cluster) clusters++;
+    }
+    lv_hb_shaped_text_destroy(shaped);
+
+    TEST_ASSERT_GREATER_THAN_UINT32(clusters, glyphs);
+
+    int32_t w0 = shaped_advance_sum(txt, 0);
+    int32_t w4 = shaped_advance_sum(txt, 4);
+    TEST_ASSERT_EQUAL_INT32(w0 + (int32_t)(clusters - 1) * 4, w4);
+}
+
+void test_freetype_harfbuzz_label_width_matches_advances(void)
+{
+    /*The width a label reports is used to centre and right-align it. If it
+     *disagrees with what the draw path advances, aligned text is drawn off
+     *its own box. "Marathi" in Devanagari, with spacing on.*/
+    const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
+
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(label, font_devanagari, 0);
+    lv_obj_set_style_text_letter_space(label, 4, 0);
+    lv_label_set_text(label, txt);
+    lv_obj_update_layout(label);
+
+    TEST_ASSERT_EQUAL_INT32(shaped_advance_sum(txt, 4), lv_obj_get_width(label));
+}
+
+void test_freetype_harfbuzz_hit_test_round_trip(void)
+{
+    /*Where a character is drawn and where a click on it lands are computed by
+     *separate code, and they have to agree. A cluster is a letter plus the
+     *marks that attach to it; it is one unit on screen, so a click anywhere
+     *inside it selects the character the cluster starts at. "Marathi" below
+     *has two such clusters, each a consonant with a vowel sign.
+     *The string is deliberately free of conjuncts: where consonants fuse,
+     *a prefix can measure wider than the fused result, so the position
+     *check below would not hold.*/
+    const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
+
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(label, font_devanagari, 0);
+    lv_obj_set_style_text_letter_space(label, 4, 0);
+    lv_label_set_text(label, txt);
+    lv_obj_update_layout(label);
+
+    int32_t prev_x = -1;
+    for(uint32_t ch = 0; ch < 5; ch++) {
+        lv_point_t pos;
+        lv_label_get_letter_pos(label, ch, &pos);
+
+        /*Characters are laid out left to right, so positions never go back*/
+        TEST_ASSERT_GREATER_OR_EQUAL_INT32(prev_x, pos.x);
+        prev_x = pos.x;
+
+        lv_point_t click = pos;
+        click.x += 1;
+        uint32_t hit = lv_label_get_letter_on(label, &click, false);
+
+        /*The hit is this character or the start of the cluster it joined*/
+        TEST_ASSERT_LESS_OR_EQUAL_UINT32(ch, hit);
+
+        /*Clicking the hit character must return the same character again*/
+        lv_point_t again;
+        lv_label_get_letter_pos(label, hit, &again);
+        again.x += 1;
+        TEST_ASSERT_EQUAL_UINT32(hit, lv_label_get_letter_on(label, &again, false));
+    }
+
+    /*The first character is always reachable at the start of the line*/
+    lv_point_t origin;
+    lv_label_get_letter_pos(label, 0, &origin);
+    TEST_ASSERT_EQUAL_INT32(0, origin.x);
+}
+
+void test_freetype_harfbuzz_recolor_is_not_shaped(void)
+{
+    /*Recolor markers such as "#ff0000 " are instructions, not text. The
+     *shaping path cannot strip them, so a line containing one is rendered
+     *by the character path instead. If it were shaped, the markers would
+     *appear as glyphs and make the label wider.*/
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(label, font_devanagari, 0);
+    lv_label_set_recolor(label, true);
+    lv_label_set_text(label, "#ff0000 \xe0\xa4\xae\xe0\xa4\xb0#");
+    lv_obj_update_layout(label);
+
+    lv_obj_t * plain = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(plain, font_devanagari, 0);
+    lv_label_set_text(plain, "\xe0\xa4\xae\xe0\xa4\xb0");
+    lv_obj_update_layout(plain);
+
+    TEST_ASSERT_EQUAL_INT32(lv_obj_get_width(plain), lv_obj_get_width(label));
+}
+
+void test_freetype_harfbuzz_off_by_default(void)
+{
+    /*Shaping changes how every glyph is placed, so a font only gets it when
+     *asked. This keeps existing FreeType text rendering untouched.*/
+    lv_font_t * plain = lv_freetype_font_create(DEVANAGARI_FONT_PATH,
+                                                LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                32,
+                                                LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(plain);
+    TEST_ASSERT_FALSE(lv_freetype_is_harfbuzz_font(plain));
+    lv_freetype_font_delete(plain);
+}
+
+void test_freetype_harfbuzz_shapes_at_two_sizes(void)
+{
+    /*Both sizes share one font face, and the shaper keeps one cached
+     *HarfBuzz font for it. Switching size must resync that cache, or the
+     *second size is measured with the first size's metrics.*/
+    lv_font_t * small = lv_freetype_font_create(DEVANAGARI_FONT_PATH,
+                                                LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                16,
+                                                LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(small);
+    lv_freetype_font_set_use_harfbuzz(small, true);
+
+    const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
+
+    /*Alternate sizes so the cache is asked to switch back and forth*/
+    int32_t big_1 = shaped_advance_sum(txt, 0);
+
+    lv_hb_shaped_text_t * s = lv_hb_shape_text(small, txt, lv_strlen(txt), LV_BASE_DIR_AUTO);
+    TEST_ASSERT_NOT_NULL(s);
+    int32_t small_w = 0;
+    for(uint32_t i = 0; i < s->count; i++) small_w += s->glyphs[i].x_advance;
+    lv_hb_shaped_text_destroy(s);
+
+    int32_t big_2 = shaped_advance_sum(txt, 0);
+
+    TEST_ASSERT_EQUAL_INT32(big_1, big_2);      /*returning to 32px measures the same*/
+    TEST_ASSERT_GREATER_THAN_INT32(small_w, big_1); /*and 16px is narrower*/
+
+    lv_freetype_font_delete(small);
+}
+
+void test_freetype_harfbuzz_rejects_non_freetype_font(void)
+{
+    /*The shaper is public API and can be handed any font*/
+    TEST_ASSERT_NULL(lv_hb_shape_text(&lv_font_montserrat_14, "abc", 3, LV_BASE_DIR_AUTO));
+    TEST_ASSERT_NULL(lv_hb_shape_text(NULL, "abc", 3, LV_BASE_DIR_AUTO));
+    TEST_ASSERT_NULL(lv_hb_shape_text(font_devanagari, NULL, 3, LV_BASE_DIR_AUTO));
+}
+
 void test_freetype_harfbuzz_render_devanagari(void)
 {
     create_devanagari_labels();
@@ -110,7 +291,7 @@ void test_freetype_harfbuzz_render_disabled(void)
 {
     /*With shaping disabled the same text must still render (unshaped),
      *using the character-by-character path*/
-    lv_freetype_font_set_harfbuzz(font_devanagari, false);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, false);
     create_devanagari_labels();
     TEST_ASSERT_EQUAL_SCREENSHOT("libs/freetype_harfbuzz_disabled" EXT_NAME);
 }
@@ -134,6 +315,34 @@ void test_freetype_harfbuzz_shapes_conjuncts(void)
 }
 
 void test_freetype_harfbuzz_cluster_mapping(void)
+{
+}
+
+void test_freetype_harfbuzz_letter_space_per_cluster(void)
+{
+}
+
+void test_freetype_harfbuzz_label_width_matches_advances(void)
+{
+}
+
+void test_freetype_harfbuzz_hit_test_round_trip(void)
+{
+}
+
+void test_freetype_harfbuzz_recolor_is_not_shaped(void)
+{
+}
+
+void test_freetype_harfbuzz_off_by_default(void)
+{
+}
+
+void test_freetype_harfbuzz_shapes_at_two_sizes(void)
+{
+}
+
+void test_freetype_harfbuzz_rejects_non_freetype_font(void)
 {
 }
 
