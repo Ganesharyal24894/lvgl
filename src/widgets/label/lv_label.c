@@ -535,8 +535,7 @@ uint32_t lv_label_get_letter_on(const lv_obj_t * obj, lv_point_t * pos_in, bool 
             uint32_t best_cluster = 0;
             for(uint32_t si = 0; si < shaped->count; si++) {
                 int32_t gw = shaped->glyphs[si].x_advance;
-                /*Mirror the renderer: a .notdef glyph is drawn from the fallback
-                 *font, so it advances by that font's width*/
+                /*Mirror the renderer: .notdef is drawn from the fallback font*/
                 if(shaped->glyphs[si].glyph_id == 0 && font->fallback != NULL) {
                     uint32_t ofs = shaped->glyphs[si].cluster;
                     uint32_t letter = lv_text_encoded_next(bidi_txt, &ofs);
@@ -546,7 +545,7 @@ uint32_t lv_label_get_letter_on(const lv_obj_t * obj, lv_point_t * pos_in, bool 
                     best_cluster = shaped->glyphs[si].cluster;
                     break;
                 }
-                /*letter_space is added between clusters only, as in the renderer*/
+                /*Between clusters only, as in the renderer*/
                 bool cluster_end = (si + 1 >= shaped->count) ||
                                    (shaped->glyphs[si + 1].cluster != shaped->glyphs[si].cluster);
                 x += gw + (cluster_end ? attributes.letter_space : 0);

@@ -78,8 +78,7 @@ bool lv_freetype_is_harfbuzz_font(const lv_font_t * font);
 #else /* LV_USE_FREETYPE && LV_USE_HARFBUZZ */
 
 /**
- * Always available so callers can branch on it without preprocessor
- * conditionals. Without HarfBuzz no font can be shaped.
+ * Always declared so callers can branch without preprocessor conditionals.
  * @param font pointer to an LVGL font
  * @return false
  */

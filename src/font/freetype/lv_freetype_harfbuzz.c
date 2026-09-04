@@ -83,9 +83,8 @@ lv_hb_shaped_text_t * lv_hb_shape_text(const lv_font_t * font, const char * text
         cache_node->last_pixel_size = dsc->size;
     }
 
-    /* The cached HarfBuzz font references the face, so a size change only
-     * needs a resync, not a new font. Fonts of different sizes sharing this
-     * face would otherwise destroy and recreate it on every alternating call. */
+    /*The cached font references the face, so a size change only needs a resync.
+     *Recreating it thrashed when two sizes shared a face.*/
     hb_font_t * hb_font = (hb_font_t *)cache_node->hb_font;
     if(hb_font == NULL) {
         hb_font = hb_ft_font_create_referenced(face);

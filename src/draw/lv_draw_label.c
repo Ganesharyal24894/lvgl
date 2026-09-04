@@ -400,8 +400,6 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
 #endif
 
 
-        /*Set when the shaping path drew the whole line, so the
-         *character-by-character loop below is skipped*/
         bool line_drawn_shaped = false;
 
 #if LV_USE_FREETYPE && LV_USE_HARFBUZZ
@@ -413,9 +411,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
             while(line_byte_len > 0 && (bidi_txt[line_byte_len - 1] == '\n' || bidi_txt[line_byte_len - 1] == '\r')) {
                 line_byte_len--;
             }
-            /* Recolor markers are consumed by the character loop below, so a
-             * line carrying them is rendered there: correct colours and text,
-             * without shaping, rather than the markers drawn as glyphs. */
+            /*The character loop consumes recolor markers; the shaping path would draw them*/
             bool has_recolor = false;
             if(dsc->flag & LV_TEXT_FLAG_RECOLOR) {
                 for(uint32_t ri = 0; ri < line_byte_len; ri++) {
@@ -442,8 +438,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                     int32_t shaped_width = 0;
                     for(uint32_t wi = 0; wi < shaped->count; wi++) {
                         int32_t gw = shaped->glyphs[wi].x_advance;
-                        /*Same advance rule as the render loop below, or a
-                         *centred line would not match what gets drawn*/
+                        /*Same rule as the render loop, or alignment misses the drawn width*/
                         if(shaped->glyphs[wi].glyph_id == 0 && font->fallback != NULL) {
                             uint32_t ofs = shaped->glyphs[wi].cluster;
                             uint32_t letter = lv_text_encoded_next(bidi_txt, &ofs);
@@ -568,8 +563,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                         draw_letter_dsc.g = NULL;
                     }
 
-                    /*letter_space separates clusters, not a base glyph from its
-                     *marks, so only add it on the last glyph of a cluster*/
+                    /*letter_space separates clusters, not a base from its marks*/
                     bool cluster_end = (si + 1 >= shaped->count) ||
                                        (shaped->glyphs[si + 1].cluster != gi->cluster);
                     pos.x += x_adv + (cluster_end ? dsc->letter_space : 0);
@@ -777,8 +771,7 @@ static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text
 {
     if(align != LV_TEXT_ALIGN_CENTER && align != LV_TEXT_ALIGN_RIGHT) return;
 
-    /*Shaped fonts get their width from the shaping pass, which applies the
-     *offset there rather than measuring the line twice*/
+    /*Shaped fonts apply the offset during shaping, avoiding a second measure*/
     if(lv_freetype_is_harfbuzz_font(font)) return;
 
     int32_t line_width = lv_text_get_width(txt, len, font, attributes);
