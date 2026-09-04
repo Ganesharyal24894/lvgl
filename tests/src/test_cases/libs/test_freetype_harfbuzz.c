@@ -239,6 +239,45 @@ void test_freetype_harfbuzz_off_by_default(void)
     lv_freetype_font_delete(plain);
 }
 
+void test_freetype_harfbuzz_shapes_at_two_sizes(void)
+{
+    /*Both sizes share one font face, and the shaper keeps one cached
+     *HarfBuzz font for it. Switching size must resync that cache, or the
+     *second size is measured with the first size's metrics.*/
+    lv_font_t * small = lv_freetype_font_create(DEVANAGARI_FONT_PATH,
+                                                LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                16,
+                                                LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(small);
+    lv_freetype_font_set_use_harfbuzz(small, true);
+
+    const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
+
+    /*Alternate sizes so the cache is asked to switch back and forth*/
+    int32_t big_1 = shaped_advance_sum(txt, 0);
+
+    lv_hb_shaped_text_t * s = lv_hb_shape_text(small, txt, lv_strlen(txt), LV_BASE_DIR_AUTO);
+    TEST_ASSERT_NOT_NULL(s);
+    int32_t small_w = 0;
+    for(uint32_t i = 0; i < s->count; i++) small_w += s->glyphs[i].x_advance;
+    lv_hb_shaped_text_destroy(s);
+
+    int32_t big_2 = shaped_advance_sum(txt, 0);
+
+    TEST_ASSERT_EQUAL_INT32(big_1, big_2);      /*returning to 32px measures the same*/
+    TEST_ASSERT_GREATER_THAN_INT32(small_w, big_1); /*and 16px is narrower*/
+
+    lv_freetype_font_delete(small);
+}
+
+void test_freetype_harfbuzz_rejects_non_freetype_font(void)
+{
+    /*The shaper is public API and can be handed any font*/
+    TEST_ASSERT_NULL(lv_hb_shape_text(&lv_font_montserrat_14, "abc", 3, LV_BASE_DIR_AUTO));
+    TEST_ASSERT_NULL(lv_hb_shape_text(NULL, "abc", 3, LV_BASE_DIR_AUTO));
+    TEST_ASSERT_NULL(lv_hb_shape_text(font_devanagari, NULL, 3, LV_BASE_DIR_AUTO));
+}
+
 void test_freetype_harfbuzz_render_devanagari(void)
 {
     create_devanagari_labels();
@@ -293,6 +332,14 @@ void test_freetype_harfbuzz_recolor_is_not_shaped(void)
 }
 
 void test_freetype_harfbuzz_off_by_default(void)
+{
+}
+
+void test_freetype_harfbuzz_shapes_at_two_sizes(void)
+{
+}
+
+void test_freetype_harfbuzz_rejects_non_freetype_font(void)
 {
 }
 
