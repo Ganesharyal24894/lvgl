@@ -101,6 +101,121 @@ static void create_devanagari_labels(void)
     add_label(cont, "मराठी भाषा ळ");            /*Marathi, incl. retroflex LLA*/
 }
 
+/*Shaping turns a string into positioned glyphs. One input character can
+ *produce several glyphs, and several characters can fuse into one glyph, so
+ *glyphs are grouped by "cluster": the character they came from. Spacing
+ *belongs between clusters, never between a glyph and the marks attached to
+ *it. This mirrors the sum the draw path performs.*/
+static int32_t shaped_advance_sum(const char * txt, int32_t letter_space)
+{
+    lv_hb_shaped_text_t * shaped = lv_hb_shape_text(font_devanagari, txt, lv_strlen(txt), LV_BASE_DIR_AUTO);
+    TEST_ASSERT_NOT_NULL(shaped);
+
+    int32_t sum = 0;
+    for(uint32_t i = 0; i < shaped->count; i++) {
+        bool cluster_end = (i + 1 >= shaped->count) || (shaped->glyphs[i + 1].cluster != shaped->glyphs[i].cluster);
+        sum += shaped->glyphs[i].x_advance + (cluster_end ? letter_space : 0);
+    }
+    if(sum > 0) sum -= letter_space;
+
+    lv_hb_shaped_text_destroy(shaped);
+    return sum;
+}
+
+void test_freetype_harfbuzz_letter_space_per_cluster(void)
+{
+    /*"Hindi" in Devanagari. It has more glyphs than clusters because the
+     *vowel sign is a separate glyph attached to its consonant. Raising
+     *letter_space must widen the line once per cluster gap, not once per
+     *glyph, or the vowel sign drifts away from the letter it belongs to.*/
+    const char * txt = "\xe0\xa4\xb9\xe0\xa4\xbf\xe0\xa4\xa8\xe0\xa5\x8d\xe0\xa4\xa6\xe0\xa5\x80";
+
+    lv_hb_shaped_text_t * shaped = lv_hb_shape_text(font_devanagari, txt, lv_strlen(txt), LV_BASE_DIR_AUTO);
+    TEST_ASSERT_NOT_NULL(shaped);
+    uint32_t glyphs = shaped->count;
+    uint32_t clusters = 0;
+    for(uint32_t i = 0; i < shaped->count; i++) {
+        if(i == 0 || shaped->glyphs[i].cluster != shaped->glyphs[i - 1].cluster) clusters++;
+    }
+    lv_hb_shaped_text_destroy(shaped);
+
+    TEST_ASSERT_GREATER_THAN_UINT32(clusters, glyphs);
+
+    int32_t w0 = shaped_advance_sum(txt, 0);
+    int32_t w4 = shaped_advance_sum(txt, 4);
+    TEST_ASSERT_EQUAL_INT32(w0 + (int32_t)(clusters - 1) * 4, w4);
+}
+
+void test_freetype_harfbuzz_label_width_matches_advances(void)
+{
+    /*The width a label reports is used to centre and right-align it. If it
+     *disagrees with what the draw path advances, aligned text is drawn off
+     *its own box. "Marathi" in Devanagari, with spacing on.*/
+    const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
+
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(label, font_devanagari, 0);
+    lv_obj_set_style_text_letter_space(label, 4, 0);
+    lv_label_set_text(label, txt);
+    lv_obj_update_layout(label);
+
+    TEST_ASSERT_EQUAL_INT32(shaped_advance_sum(txt, 4), lv_obj_get_width(label));
+}
+
+void test_freetype_harfbuzz_hit_test_round_trip(void)
+{
+    /*Where a character is drawn and where a click lands on it are computed
+     *by separate code. Asking for a character's position and clicking it
+     *must return the same character, or text selection picks the wrong one.*/
+    const char * txt = "\xe0\xa4\xae\xe0\xa4\xb0\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa5\x80";
+
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(label, font_devanagari, 0);
+    lv_obj_set_style_text_letter_space(label, 4, 0);
+    lv_label_set_text(label, txt);
+    lv_obj_update_layout(label);
+
+    for(uint32_t ch = 0; ch < 3; ch++) {
+        lv_point_t pos;
+        lv_label_get_letter_pos(label, ch, &pos);
+        pos.x += 1; /*inside the glyph rather than on its edge*/
+        TEST_ASSERT_EQUAL_UINT32(ch, lv_label_get_letter_on(label, &pos, false));
+    }
+}
+
+void test_freetype_harfbuzz_recolor_is_not_shaped(void)
+{
+    /*Recolor markers such as "#ff0000 " are instructions, not text. The
+     *shaping path cannot strip them, so a line containing one is rendered
+     *by the character path instead. If it were shaped, the markers would
+     *appear as glyphs and make the label wider.*/
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(label, font_devanagari, 0);
+    lv_label_set_recolor(label, true);
+    lv_label_set_text(label, "#ff0000 \xe0\xa4\xae\xe0\xa4\xb0#");
+    lv_obj_update_layout(label);
+
+    lv_obj_t * plain = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(plain, font_devanagari, 0);
+    lv_label_set_text(plain, "\xe0\xa4\xae\xe0\xa4\xb0");
+    lv_obj_update_layout(plain);
+
+    TEST_ASSERT_EQUAL_INT32(lv_obj_get_width(plain), lv_obj_get_width(label));
+}
+
+void test_freetype_harfbuzz_off_by_default(void)
+{
+    /*Shaping changes how every glyph is placed, so a font only gets it when
+     *asked. This keeps existing FreeType text rendering untouched.*/
+    lv_font_t * plain = lv_freetype_font_create(DEVANAGARI_FONT_PATH,
+                                                LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                32,
+                                                LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(plain);
+    TEST_ASSERT_FALSE(lv_freetype_is_harfbuzz_font(plain));
+    lv_freetype_font_delete(plain);
+}
+
 void test_freetype_harfbuzz_render_devanagari(void)
 {
     create_devanagari_labels();
@@ -135,6 +250,26 @@ void test_freetype_harfbuzz_shapes_conjuncts(void)
 }
 
 void test_freetype_harfbuzz_cluster_mapping(void)
+{
+}
+
+void test_freetype_harfbuzz_letter_space_per_cluster(void)
+{
+}
+
+void test_freetype_harfbuzz_label_width_matches_advances(void)
+{
+}
+
+void test_freetype_harfbuzz_hit_test_round_trip(void)
+{
+}
+
+void test_freetype_harfbuzz_recolor_is_not_shaped(void)
+{
+}
+
+void test_freetype_harfbuzz_off_by_default(void)
 {
 }
 

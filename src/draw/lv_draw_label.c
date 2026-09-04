@@ -403,7 +403,11 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
         bool line_drawn_shaped = false;
 
 #if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-        /*HarfBuzz shaping path: shape the entire line and render shaped glyphs*/
+        /*Shaping path. HarfBuzz turns the line into positioned glyphs in one
+         *pass: characters may fuse into one glyph or expand into several, and
+         *marks may be repositioned around the letter they attach to. Each
+         *glyph records the character it came from (its cluster), which is how
+         *selection and hit-testing map glyphs back to text.*/
         if(lv_freetype_is_harfbuzz_font(font)) {
             uint32_t line_byte_len = line_end - line_start;
             /* Strip trailing newline/carriage return from shaping input
@@ -438,7 +442,8 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                     int32_t shaped_width = 0;
                     for(uint32_t wi = 0; wi < shaped->count; wi++) {
                         int32_t gw = shaped->glyphs[wi].x_advance;
-                        /*Same rule as the render loop, or alignment misses the drawn width*/
+                        /*Must match the render loop below, or a centred line is
+                         *drawn at a different width than it measured*/
                         if(shaped->glyphs[wi].glyph_id == 0 && font->fallback != NULL) {
                             uint32_t ofs = shaped->glyphs[wi].cluster;
                             uint32_t letter = lv_text_encoded_next(bidi_txt, &ofs);
@@ -563,7 +568,8 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                         draw_letter_dsc.g = NULL;
                     }
 
-                    /*letter_space separates clusters, not a base from its marks*/
+                    /*Spacing goes between clusters. Adding it after every glyph
+                     *would push a mark away from the letter it belongs to.*/
                     bool cluster_end = (si + 1 >= shaped->count) ||
                                        (shaped->glyphs[si + 1].cluster != gi->cluster);
                     pos.x += x_adv + (cluster_end ? dsc->letter_space : 0);
