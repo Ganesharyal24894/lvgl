@@ -43,6 +43,9 @@ typedef unsigned char cmd_state_t;
  *  STATIC PROTOTYPES
  **********************/
 static uint8_t hex_char_to_num(char hex);
+static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text_align_t align,
+                             const char * txt, uint32_t len, const lv_font_t * font,
+                             const lv_text_attributes_t * attributes);
 
 /**********************
  *  STATIC VARIABLES
@@ -280,7 +283,6 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
     int32_t line_height = line_height_font + dsc->line_space;
 
     /*Init variables for the first line*/
-    int32_t line_width = 0;
     lv_point_t pos;
     lv_point_set(&pos, coords->x1, coords->y1);
 
@@ -334,22 +336,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
         if(dsc->text[line_start] == '\0') return;
     }
 
-    /*Align to middle*/
-    if(align == LV_TEXT_ALIGN_CENTER) {
-        /*For HarfBuzz fonts, defer width calculation to the shaping path
-         *to avoid shaping the text twice (once for width, once for rendering).*/
-        if(!lv_freetype_is_harfbuzz_font(font)) {
-            line_width = lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &attributes);
-            pos.x += (lv_area_get_width(coords) - line_width) / 2;
-        }
-    }
-    /*Align to the right*/
-    else if(align == LV_TEXT_ALIGN_RIGHT) {
-        if(!lv_freetype_is_harfbuzz_font(font)) {
-            line_width = lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &attributes);
-            pos.x += lv_area_get_width(coords) - line_width;
-        }
-    }
+    label_align_line(&pos, coords, align, &dsc->text[line_start], line_end - line_start, font, &attributes);
 
     uint32_t sel_start = dsc->sel_start;
     uint32_t sel_end = dsc->sel_end;
@@ -412,6 +399,10 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
         const char * bidi_txt = dsc->text + line_start;
 #endif
 
+
+        /*Set when the shaping path drew the whole line, so the
+         *character-by-character loop below is skipped*/
+        bool line_drawn_shaped = false;
 
 #if LV_USE_FREETYPE && LV_USE_HARFBUZZ
         /*HarfBuzz shaping path: shape the entire line and render shaped glyphs*/
@@ -558,12 +549,12 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                     pos.x += x_adv + dsc->letter_space;
                 }
                 lv_hb_shaped_text_destroy(shaped);
-                goto harfbuzz_next_line;
+                line_drawn_shaped = true;
             }
         }
 #endif /*LV_USE_FREETYPE && LV_USE_HARFBUZZ*/
 
-        while(next_char_offset < remaining_len && next_char_offset < line_end - line_start) {
+        while(!line_drawn_shaped && next_char_offset < remaining_len && next_char_offset < line_end - line_start) {
             uint32_t logical_char_pos = 0;
 
             /* Check if the text selection is enabled */
@@ -713,11 +704,6 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
             }
         }
 
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-harfbuzz_next_line:
-        ;
-#endif
-
 #if LV_USE_BIDI
         lv_free(bidi_txt);
         bidi_txt = NULL;
@@ -736,23 +722,8 @@ harfbuzz_next_line:
         }
 
         pos.x = coords->x1;
-        /*Align to middle*/
-        if(align == LV_TEXT_ALIGN_CENTER) {
-            /*For HarfBuzz fonts, defer width calculation to the shaping path above*/
-            if(!lv_freetype_is_harfbuzz_font(font)) {
-                line_width =
-                    lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &text_attributes);
-                pos.x += (lv_area_get_width(coords) - line_width) / 2;
-            }
-        }
-        /*Align to the right*/
-        else if(align == LV_TEXT_ALIGN_RIGHT) {
-            if(!lv_freetype_is_harfbuzz_font(font)) {
-                line_width =
-                    lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &text_attributes);
-                pos.x += lv_area_get_width(coords) - line_width;
-            }
-        }
+        label_align_line(&pos, coords, align, &dsc->text[line_start], line_end - line_start, font,
+                         &text_attributes);
 
         /*Go the next line position*/
         pos.y += line_height;
@@ -774,6 +745,25 @@ harfbuzz_next_line:
  * @param hex Pointer to a hexadecimal character (0..9, A..F)
  * @return the numerical value of `hex` or 0 on error
  */
+static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text_align_t align,
+                             const char * txt, uint32_t len, const lv_font_t * font,
+                             const lv_text_attributes_t * attributes)
+{
+    if(align != LV_TEXT_ALIGN_CENTER && align != LV_TEXT_ALIGN_RIGHT) return;
+
+    /*Shaped fonts get their width from the shaping pass, which applies the
+     *offset there rather than measuring the line twice*/
+    if(lv_freetype_is_harfbuzz_font(font)) return;
+
+    int32_t line_width = lv_text_get_width(txt, len, font, attributes);
+    if(align == LV_TEXT_ALIGN_CENTER) {
+        pos->x += (lv_area_get_width(coords) - line_width) / 2;
+    }
+    else {
+        pos->x += lv_area_get_width(coords) - line_width;
+    }
+}
+
 static uint8_t hex_char_to_num(char hex)
 {
     if(hex >= '0' && hex <= '9') return hex - '0';
