@@ -8,6 +8,7 @@
  *********************/
 
 #include "lv_text_private.h"
+#include "../font/freetype/lv_freetype_harfbuzz.h"
 #include "lv_text_ap.h"
 #include "../font/lv_font_private.h"
 
@@ -443,13 +444,48 @@ int32_t lv_text_get_width(const char * txt, uint32_t length, const lv_font_t * f
     if(font == NULL) return 0;
     if(txt[0] == '\0') return 0;
 
-    /* Note: For HarfBuzz fonts, we intentionally use the character-by-character
-     * path below rather than calling lv_hb_shape_text(). This avoids expensive
-     * HarfBuzz shaping during layout/size calculation (lv_text_get_size), since
-     * the render path in lv_draw_label.c will shape the text again anyway.
-     * The per-character widths slightly overestimate for complex scripts (conjuncts
-     * merge multiple chars into one glyph) but this only affects layout sizing,
-     * not visual correctness — the render path uses HarfBuzz for precise placement. */
+    /*Shaped text must be measured the way it is drawn. Summing character
+     *widths overestimates whenever characters fuse into one glyph, which
+     *would size the label wider than its own text and put hit-testing on
+     *different coordinates than rendering. The shaped result is cached, so
+     *the extra call is cheap on repeat.*/
+    if(lv_freetype_is_harfbuzz_font(font)) {
+        bool has_recolor = false;
+        if(attributes->text_flags & LV_TEXT_FLAG_RECOLOR) {
+            for(uint32_t r = 0; txt[r] != '\0' && (length == 0 || r < length); r++) {
+                if(txt[r] == LV_TXT_COLOR_CMD[0]) {
+                    has_recolor = true;
+                    break;
+                }
+            }
+        }
+
+        if(!has_recolor) {
+            uint32_t byte_len = length ? length : lv_strlen(txt);
+            while(byte_len > 0 && (txt[byte_len - 1] == '\n' || txt[byte_len - 1] == '\r')) {
+                byte_len--;
+            }
+
+            lv_hb_shaped_text_t * shaped = byte_len ? lv_hb_shape_text(font, txt, byte_len, LV_BASE_DIR_AUTO) : NULL;
+            if(shaped) {
+                int32_t shaped_w = 0;
+                for(uint32_t g = 0; g < shaped->count; g++) {
+                    int32_t gw = shaped->glyphs[g].x_advance;
+                    if(shaped->glyphs[g].glyph_id == 0 && font->fallback != NULL) {
+                        uint32_t ofs = shaped->glyphs[g].cluster;
+                        uint32_t letter = lv_text_encoded_next(txt, &ofs);
+                        if(letter) gw = lv_font_get_glyph_width(font->fallback, letter, 0);
+                    }
+                    bool cluster_end = (g + 1 >= shaped->count) ||
+                                       (shaped->glyphs[g + 1].cluster != shaped->glyphs[g].cluster);
+                    shaped_w += gw + (cluster_end ? attributes->letter_space : 0);
+                }
+                if(shaped_w > 0) shaped_w -= attributes->letter_space;
+                lv_hb_shaped_text_destroy(shaped);
+                return shaped_w;
+            }
+        }
+    }
 
     uint32_t i                = 0;
     int32_t width             = 0;
