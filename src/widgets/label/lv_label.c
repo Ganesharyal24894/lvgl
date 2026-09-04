@@ -519,7 +519,8 @@ uint32_t lv_label_get_letter_on(const lv_obj_t * obj, lv_point_t * pos_in, bool 
     if(lv_freetype_is_harfbuzz_font(font) && new_line_start > 0) {
         uint32_t line_byte_len = new_line_start - line_start;
         /* Strip trailing newline/carriage return from shaping input */
-        while(line_byte_len > 0 && (bidi_txt[line_byte_len - 1] == '\n' || bidi_txt[line_byte_len - 1] == '\r')) {
+        while(line_byte_len > 0 && (bidi_txt[line_byte_len - 1] == '\n' || bidi_txt[line_byte_len - 1] == '\r' ||
+                                    bidi_txt[line_byte_len - 1] == '\0')) {
             line_byte_len--;
         }
         /* If BIDI processing was applied, text is in visual order — force LTR
@@ -534,11 +535,21 @@ uint32_t lv_label_get_letter_on(const lv_obj_t * obj, lv_point_t * pos_in, bool 
             uint32_t best_cluster = 0;
             for(uint32_t si = 0; si < shaped->count; si++) {
                 int32_t gw = shaped->glyphs[si].x_advance;
+                /*Mirror the renderer: a .notdef glyph is drawn from the fallback
+                 *font, so it advances by that font's width*/
+                if(shaped->glyphs[si].glyph_id == 0 && font->fallback != NULL) {
+                    uint32_t ofs = shaped->glyphs[si].cluster;
+                    uint32_t letter = lv_text_encoded_next(bidi_txt, &ofs);
+                    if(letter) gw = lv_font_get_glyph_width(font->fallback, letter, 0);
+                }
                 if(pos.x < x + gw || si == shaped->count - 1) {
                     best_cluster = shaped->glyphs[si].cluster;
                     break;
                 }
-                x += gw + (gw > 0 ? attributes.letter_space : 0);
+                /*letter_space is added between clusters only, as in the renderer*/
+                bool cluster_end = (si + 1 >= shaped->count) ||
+                                   (shaped->glyphs[si + 1].cluster != shaped->glyphs[si].cluster);
+                x += gw + (cluster_end ? attributes.letter_space : 0);
             }
             lv_hb_shaped_text_destroy(shaped);
             i = best_cluster;

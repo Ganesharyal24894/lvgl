@@ -429,7 +429,16 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                     int32_t shaped_width = 0;
                     for(uint32_t wi = 0; wi < shaped->count; wi++) {
                         int32_t gw = shaped->glyphs[wi].x_advance;
-                        if(gw > 0) shaped_width += gw + dsc->letter_space;
+                        /*Same advance rule as the render loop below, or a
+                         *centred line would not match what gets drawn*/
+                        if(shaped->glyphs[wi].glyph_id == 0 && font->fallback != NULL) {
+                            uint32_t ofs = shaped->glyphs[wi].cluster;
+                            uint32_t letter = lv_text_encoded_next(bidi_txt, &ofs);
+                            if(letter) gw = lv_font_get_glyph_width(font->fallback, letter, 0);
+                        }
+                        bool cluster_end = (wi + 1 >= shaped->count) ||
+                                           (shaped->glyphs[wi + 1].cluster != shaped->glyphs[wi].cluster);
+                        shaped_width += gw + (cluster_end ? dsc->letter_space : 0);
                     }
                     if(shaped_width > 0) shaped_width -= dsc->letter_space;
                     if(align == LV_TEXT_ALIGN_CENTER) {
@@ -546,7 +555,11 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                         draw_letter_dsc.g = NULL;
                     }
 
-                    pos.x += x_adv + dsc->letter_space;
+                    /*letter_space separates clusters, not a base glyph from its
+                     *marks, so only add it on the last glyph of a cluster*/
+                    bool cluster_end = (si + 1 >= shaped->count) ||
+                                       (shaped->glyphs[si + 1].cluster != gi->cluster);
+                    pos.x += x_adv + (cluster_end ? dsc->letter_space : 0);
                 }
                 lv_hb_shaped_text_destroy(shaped);
                 line_drawn_shaped = true;
