@@ -16,8 +16,8 @@
 #include "../core/lv_global.h"
 #include "../font/lv_font_private.h"
 
+#include "../font/freetype/lv_freetype_harfbuzz.h"
 #if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-    #include "../font/freetype/lv_freetype_harfbuzz.h"
     #include "../font/freetype/lv_freetype_private.h"
 #endif
 
@@ -336,22 +336,16 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
 
     /*Align to middle*/
     if(align == LV_TEXT_ALIGN_CENTER) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
         /*For HarfBuzz fonts, defer width calculation to the shaping path
          *to avoid shaping the text twice (once for width, once for rendering).*/
-        if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-        {
+        if(!lv_freetype_is_harfbuzz_font(font)) {
             line_width = lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &attributes);
             pos.x += (lv_area_get_width(coords) - line_width) / 2;
         }
     }
     /*Align to the right*/
     else if(align == LV_TEXT_ALIGN_RIGHT) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-        if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-        {
+        if(!lv_freetype_is_harfbuzz_font(font)) {
             line_width = lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &attributes);
             pos.x += lv_area_get_width(coords) - line_width;
         }
@@ -744,11 +738,8 @@ harfbuzz_next_line:
         pos.x = coords->x1;
         /*Align to middle*/
         if(align == LV_TEXT_ALIGN_CENTER) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
             /*For HarfBuzz fonts, defer width calculation to the shaping path above*/
-            if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-            {
+            if(!lv_freetype_is_harfbuzz_font(font)) {
                 line_width =
                     lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &text_attributes);
                 pos.x += (lv_area_get_width(coords) - line_width) / 2;
@@ -756,10 +747,7 @@ harfbuzz_next_line:
         }
         /*Align to the right*/
         else if(align == LV_TEXT_ALIGN_RIGHT) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-            if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-            {
+            if(!lv_freetype_is_harfbuzz_font(font)) {
                 line_width =
                     lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &text_attributes);
                 pos.x += lv_area_get_width(coords) - line_width;
