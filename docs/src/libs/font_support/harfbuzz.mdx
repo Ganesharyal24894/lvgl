@@ -13,7 +13,7 @@ context.
 LVGL's HarfBuzz integration adds automatic text shaping for complex scripts.
 It uses [HarfBuzz](https://harfbuzz.github.io/), the industry-standard
 open-source text shaping engine, together with FreeType for glyph rasterization.
-Once enabled, labels and other text widgets shape complex-script text
+Enable shaping per font with `lv_freetype_font_set_use_harfbuzz(font, true)` (it is off by default, so existing FreeType rendering is unchanged). Once enabled, labels and other text widgets shape complex-script text
 transparently — no application-level changes are needed.
 
 <Callout type="info">

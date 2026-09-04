@@ -75,6 +75,11 @@ void lv_example_harfbuzz_2(void)
         return;
     }
 
+    /*Shaping is off by default; turn it on for these fonts*/
+    lv_freetype_font_set_use_harfbuzz(font_bengali, true);
+    lv_freetype_font_set_use_harfbuzz(font_telugu, true);
+    lv_freetype_font_set_use_harfbuzz(font_thai, true);
+
     /*Container with column layout*/
     lv_obj_t * cont = lv_obj_create(lv_screen_active());
     lv_obj_set_size(cont, lv_pct(90), LV_SIZE_CONTENT);

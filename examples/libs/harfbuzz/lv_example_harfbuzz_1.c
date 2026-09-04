@@ -37,6 +37,9 @@ void lv_example_harfbuzz_1(void)
         return;
     }
 
+    /*Shaping is off by default; turn it on for this font*/
+    lv_freetype_font_set_use_harfbuzz(font_hindi, true);
+
     /*Set a Latin fallback so digits and punctuation also render*/
     font_hindi->fallback = &lv_font_montserrat_14;
 

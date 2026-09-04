@@ -45,15 +45,15 @@ bool lv_freetype_is_harfbuzz_font(const lv_font_t * font)
     if(font == NULL || font->dsc == NULL) return false;
     const lv_freetype_font_dsc_t * dsc = (const lv_freetype_font_dsc_t *)font->dsc;
     if(!LV_FREETYPE_FONT_DSC_HAS_MAGIC_NUM(dsc)) return false;
-    return !dsc->skip_harfbuzz;
+    return dsc->use_harfbuzz;
 }
 
-void lv_freetype_font_set_harfbuzz(lv_font_t * font, bool enabled)
+void lv_freetype_font_set_use_harfbuzz(lv_font_t * font, bool use)
 {
     if(font == NULL || font->dsc == NULL) return;
     lv_freetype_font_dsc_t * dsc = (lv_freetype_font_dsc_t *)font->dsc;
     if(!LV_FREETYPE_FONT_DSC_HAS_MAGIC_NUM(dsc)) return;
-    dsc->skip_harfbuzz = !enabled;
+    dsc->use_harfbuzz = use;
 }
 
 lv_hb_shaped_text_t * lv_hb_shape_text(const lv_font_t * font, const char * text, uint32_t byte_len,

@@ -139,13 +139,14 @@ bool lv_freetype_is_outline_font(const lv_font_t * font);
 
 #if LV_USE_HARFBUZZ
 /**
- * Enable or disable HarfBuzz shaping for a FreeType font instance.
- * When disabled, the font uses LVGL's standard character-by-character rendering
- * (compatible with LV_USE_ARABIC_PERSIAN_CHARS and LV_USE_BIDI).
+ * Enable HarfBuzz shaping for a FreeType font instance. Off by default;
+ * fonts render with LVGL's standard character-by-character path
+ * (compatible with LV_USE_ARABIC_PERSIAN_CHARS and LV_USE_BIDI) until
+ * shaping is enabled here.
  * @param font pointer to an LVGL font (must be a FreeType font)
- * @param enabled true to enable HarfBuzz (default), false to disable
+ * @param use true to shape this font with HarfBuzz
  */
-void lv_freetype_font_set_harfbuzz(lv_font_t * font, bool enabled);
+void lv_freetype_font_set_use_harfbuzz(lv_font_t * font, bool use);
 #endif
 
 /**********************

@@ -24,6 +24,7 @@ void setUp(void)
                                               32,
                                               LV_FREETYPE_FONT_STYLE_NORMAL);
     TEST_ASSERT_NOT_NULL(font_devanagari);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, true);
 }
 
 void tearDown(void)
@@ -40,9 +41,9 @@ void test_freetype_font_is_harfbuzz(void)
     TEST_ASSERT_TRUE(lv_freetype_is_harfbuzz_font(font_devanagari));
 
     /*The per-font toggle disables and re-enables shaping*/
-    lv_freetype_font_set_harfbuzz(font_devanagari, false);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, false);
     TEST_ASSERT_FALSE(lv_freetype_is_harfbuzz_font(font_devanagari));
-    lv_freetype_font_set_harfbuzz(font_devanagari, true);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, true);
     TEST_ASSERT_TRUE(lv_freetype_is_harfbuzz_font(font_devanagari));
 
     /*Built-in bitmap fonts are never HarfBuzz fonts*/
@@ -110,7 +111,7 @@ void test_freetype_harfbuzz_render_disabled(void)
 {
     /*With shaping disabled the same text must still render (unshaped),
      *using the character-by-character path*/
-    lv_freetype_font_set_harfbuzz(font_devanagari, false);
+    lv_freetype_font_set_use_harfbuzz(font_devanagari, false);
     create_devanagari_labels();
     TEST_ASSERT_EQUAL_SCREENSHOT("libs/freetype_harfbuzz_disabled" EXT_NAME);
 }

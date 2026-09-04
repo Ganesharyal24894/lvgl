@@ -152,7 +152,7 @@ typedef struct _lv_freetype_font_dsc_t {
     FTC_FaceID face_id;
     lv_font_kerning_t kerning;
 #if LV_USE_HARFBUZZ
-    bool skip_harfbuzz;             /**< If true, bypass HarfBuzz shaping for this font instance. */
+    bool use_harfbuzz;              /**< Enable HarfBuzz shaping for this font instance. Off by default. */
 #endif
 } lv_freetype_font_dsc_t;
 
