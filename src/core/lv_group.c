@@ -134,7 +134,7 @@ void lv_group_add_obj(lv_group_t * group, lv_obj_t * obj)
         return;
     }
 
-    LV_ASSERT_NULL(obj->spec_attr);
+    LV_ASSERT(obj->spec_attr != NULL);
 
     /*Be sure the object is removed from its current group*/
     lv_group_remove_obj(obj);
@@ -191,20 +191,16 @@ void lv_group_remove_obj(lv_obj_t * obj)
     if(g->obj_focus && *g->obj_focus == obj) {
         if(g->frozen) g->frozen = 0;
 
-        /*If this is the only object in the group then focus to nothing.*/
-        if(lv_ll_get_head(&g->obj_ll) == g->obj_focus && lv_ll_get_tail(&g->obj_ll) == g->obj_focus) {
-            lv_obj_send_event(*g->obj_focus, LV_EVENT_DEFOCUSED, get_indev(g));
-        }
-        /*If there more objects in the group then focus to the next/prev object*/
-        else {
+        /*If there are more objects in the group, try to move focus to the next/prev object*/
+        if(lv_ll_get_head(&g->obj_ll) != g->obj_focus || lv_ll_get_tail(&g->obj_ll) != g->obj_focus) {
             lv_group_refocus(g);
         }
     }
 
-    /*If the focuses object is still the same then it was the only object in the group but it will
-     *be deleted. Set the `obj_focus` to NULL to get back to the initial state of the group with
-     *zero objects*/
+    /*If the focused object is still the one being removed (either it was the only object,
+     *or refocus couldn't find a focusable candidate), defocus it and clear the focus.*/
     if(g->obj_focus && *g->obj_focus == obj) {
+        lv_obj_send_event(*g->obj_focus, LV_EVENT_DEFOCUSED, get_indev(g));
         g->obj_focus = NULL;
     }
 
@@ -257,7 +253,7 @@ void lv_group_focus_obj(lv_obj_t * obj)
     LV_LL_READ(&g->obj_ll, i) {
         if(*i == obj) {
             if(g->obj_focus != NULL) {
-                if(*g->obj_focus == obj) break;  // Refocusing same object
+                if(*g->obj_focus == obj) break;  /*Refocusing same object*/
                 lv_result_t res = lv_obj_send_event(*g->obj_focus, LV_EVENT_DEFOCUSED, get_indev(g));
                 if(res != LV_RESULT_OK) return;
                 lv_obj_invalidate(*g->obj_focus);
@@ -461,6 +457,7 @@ void * lv_group_get_user_data(const lv_group_t * group)
 
 static void lv_group_refocus(lv_group_t * g)
 {
+    LV_ASSERT(g != NULL);
     /*Refocus must temporarily allow wrapping to work correctly*/
     uint8_t temp_wrap = g->wrap;
     g->wrap           = 1;
@@ -476,6 +473,9 @@ static void lv_group_refocus(lv_group_t * g)
 static bool focus_next_core(lv_group_t * group, void * (*begin)(const lv_ll_t *),
                             void * (*move)(const lv_ll_t *, const void *))
 {
+    LV_ASSERT(group != NULL);
+    LV_ASSERT(begin != NULL);
+    LV_ASSERT(move != NULL);
     if(group->frozen) return false;
 
     bool focus_changed = false;
@@ -520,11 +520,11 @@ static bool focus_next_core(lv_group_t * group, void * (*begin)(const lv_ll_t *)
          *If any parent is hidden, the object is also hidden)*/
         lv_obj_t * parent = *obj_next;
         while(parent) {
-            if(lv_obj_has_flag(parent, LV_OBJ_FLAG_HIDDEN)) break;
+            if(lv_obj_is_hidden(parent)) break;
             parent = lv_obj_get_parent(parent);
         }
 
-        if(parent && lv_obj_has_flag(parent, LV_OBJ_FLAG_HIDDEN)) continue;
+        if(parent && lv_obj_is_hidden(parent)) continue;
 
         /*If we got her a good candidate is found*/
         break;
@@ -559,6 +559,7 @@ static bool focus_next_core(lv_group_t * group, void * (*begin)(const lv_ll_t *)
  */
 static lv_indev_t * get_indev(const lv_group_t * g)
 {
+    LV_ASSERT(g != NULL);
     lv_indev_t * indev_guess = NULL;
     lv_indev_t * indev = lv_indev_get_next(NULL);
 
