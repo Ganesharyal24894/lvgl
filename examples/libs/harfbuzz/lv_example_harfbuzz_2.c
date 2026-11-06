@@ -20,7 +20,7 @@ static lv_obj_t * add_script_section(lv_obj_t * parent, const lv_font_t * font,
     lv_obj_t * lbl = lv_label_create(parent);
     lv_obj_set_style_text_font(lbl, font, 0);
     lv_obj_set_width(lbl, lv_pct(100));
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_MODE_WRAP);
     lv_label_set_text(lbl, sample);
     return lbl;
 }
@@ -64,9 +64,9 @@ void lv_example_harfbuzz_2(void)
 
     if(!font_bengali || !font_telugu || !font_thai) {
         LV_LOG_ERROR("failed to create one or more fonts");
-        if(font_bengali) lv_freetype_font_delete(font_bengali);
-        if(font_telugu)  lv_freetype_font_delete(font_telugu);
-        if(font_thai)    lv_freetype_font_delete(font_thai);
+        lv_freetype_font_delete(font_bengali);
+        lv_freetype_font_delete(font_telugu);
+        lv_freetype_font_delete(font_thai);
         lv_obj_t * lbl = lv_label_create(lv_screen_active());
         lv_label_set_text(lbl, "Font file(s) not found.\n"
                           "Run this example from the LVGL root so the bundled\n"
@@ -74,6 +74,11 @@ void lv_example_harfbuzz_2(void)
         lv_obj_center(lbl);
         return;
     }
+
+    /*Shaping is off by default; turn it on for these fonts*/
+    lv_freetype_font_set_use_harfbuzz(font_bengali, true);
+    lv_freetype_font_set_use_harfbuzz(font_telugu, true);
+    lv_freetype_font_set_use_harfbuzz(font_thai, true);
 
     /*Container with column layout*/
     lv_obj_t * cont = lv_obj_create(lv_screen_active());

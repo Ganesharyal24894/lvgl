@@ -45,15 +45,15 @@ bool lv_freetype_is_harfbuzz_font(const lv_font_t * font)
     if(font == NULL || font->dsc == NULL) return false;
     const lv_freetype_font_dsc_t * dsc = (const lv_freetype_font_dsc_t *)font->dsc;
     if(!LV_FREETYPE_FONT_DSC_HAS_MAGIC_NUM(dsc)) return false;
-    return !dsc->skip_harfbuzz;
+    return dsc->use_harfbuzz;
 }
 
-void lv_freetype_font_set_harfbuzz(lv_font_t * font, bool enabled)
+void lv_freetype_font_set_use_harfbuzz(lv_font_t * font, bool use)
 {
     if(font == NULL || font->dsc == NULL) return;
     lv_freetype_font_dsc_t * dsc = (lv_freetype_font_dsc_t *)font->dsc;
     if(!LV_FREETYPE_FONT_DSC_HAS_MAGIC_NUM(dsc)) return;
-    dsc->skip_harfbuzz = !enabled;
+    dsc->use_harfbuzz = use;
 }
 
 lv_hb_shaped_text_t * lv_hb_shape_text(const lv_font_t * font, const char * text, uint32_t byte_len,
@@ -83,17 +83,13 @@ lv_hb_shaped_text_t * lv_hb_shape_text(const lv_font_t * font, const char * text
         cache_node->last_pixel_size = dsc->size;
     }
 
-    /* Get or create cached HarfBuzz font.
-     * Recreate if the pixel size has changed since the last call. */
+    /*The cached font references the face, so a size change only needs a resync.
+     *Recreating it thrashed when two sizes shared a face.*/
     hb_font_t * hb_font = (hb_font_t *)cache_node->hb_font;
-    if(hb_font == NULL || cache_node->hb_font_size != dsc->size) {
-        if(hb_font) {
-            hb_font_destroy(hb_font);
-        }
+    if(hb_font == NULL) {
         hb_font = hb_ft_font_create_referenced(face);
         if(hb_font == NULL) {
             LV_LOG_ERROR("hb_ft_font_create_referenced failed");
-            cache_node->hb_font = NULL;
             lv_mutex_unlock(&cache_node->face_lock);
             return NULL;
         }
@@ -102,8 +98,11 @@ lv_hb_shaped_text_t * lv_hb_shape_text(const lv_font_t * font, const char * text
          *with rendering and measurement by up to a pixel per glyph*/
         hb_ft_font_set_load_flags(hb_font, FT_LOAD_DEFAULT | FT_LOAD_NO_AUTOHINT);
         cache_node->hb_font = hb_font;
-        cache_node->hb_font_size = dsc->size;
     }
+    else if(cache_node->hb_font_size != dsc->size) {
+        hb_ft_font_changed(hb_font);
+    }
+    cache_node->hb_font_size = dsc->size;
 
     /* Get or create reusable HarfBuzz buffer from cache_node */
     hb_buffer_t * hb_buf = (hb_buffer_t *)cache_node->hb_buf;

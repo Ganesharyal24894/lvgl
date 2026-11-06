@@ -14,9 +14,10 @@
 #include "../misc/lv_bidi_private.h"
 #include "../misc/lv_text_private.h"
 #include "../core/lv_global.h"
+#include "../font/lv_font_private.h"
 
+#include "../font/freetype/lv_freetype_harfbuzz.h"
 #if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-    #include "../font/freetype/lv_freetype_harfbuzz.h"
     #include "../font/freetype/lv_freetype_private.h"
 #endif
 
@@ -42,6 +43,9 @@ typedef unsigned char cmd_state_t;
  *  STATIC PROTOTYPES
  **********************/
 static uint8_t hex_char_to_num(char hex);
+static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text_align_t align,
+                             const char * txt, uint32_t len, const lv_font_t * font,
+                             const lv_text_attributes_t * attributes);
 
 /**********************
  *  STATIC VARIABLES
@@ -61,6 +65,8 @@ static uint8_t hex_char_to_num(char hex);
 
 void lv_draw_letter_dsc_init(lv_draw_letter_dsc_t * dsc)
 {
+    LV_CHECK_ARG(dsc != NULL, return);
+
     lv_memzero(dsc, sizeof(lv_draw_letter_dsc_t));
     dsc->opa = LV_OPA_COVER;
     dsc->color = lv_color_black();
@@ -73,6 +79,8 @@ void lv_draw_letter_dsc_init(lv_draw_letter_dsc_t * dsc)
 
 void lv_draw_label_dsc_init(lv_draw_label_dsc_t * dsc)
 {
+    LV_CHECK_ARG(dsc != NULL, return);
+
     lv_memzero(dsc, sizeof(lv_draw_label_dsc_t));
     dsc->opa = LV_OPA_COVER;
     dsc->color = lv_color_black();
@@ -88,17 +96,25 @@ void lv_draw_label_dsc_init(lv_draw_label_dsc_t * dsc)
 
 lv_draw_label_dsc_t * lv_draw_task_get_label_dsc(lv_draw_task_t * task)
 {
+    LV_CHECK_ARG(task != NULL, return NULL);
+
     return task->type == LV_DRAW_TASK_TYPE_LABEL ? (lv_draw_label_dsc_t *)task->draw_dsc : NULL;
 }
 
 void lv_draw_glyph_dsc_init(lv_draw_glyph_dsc_t * dsc)
 {
+    LV_CHECK_ARG(dsc != NULL, return);
+
     lv_memzero(dsc, sizeof(lv_draw_glyph_dsc_t));
 }
 
 void LV_ATTRIBUTE_FAST_MEM lv_draw_label(lv_layer_t * layer, const lv_draw_label_dsc_t * dsc,
                                          const lv_area_t * coords)
 {
+    LV_CHECK_ARG(layer != NULL, return);
+    LV_CHECK_ARG(dsc != NULL, return);
+    LV_CHECK_ARG(coords != NULL, return);
+
     if(dsc->opa <= LV_OPA_MIN) return;
     if(dsc->text == NULL || dsc->text[0] == '\0') return;
     if(dsc->font == NULL) {
@@ -139,6 +155,10 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_label(lv_layer_t * layer, const lv_draw_label
 void LV_ATTRIBUTE_FAST_MEM lv_draw_character(lv_layer_t * layer, lv_draw_label_dsc_t * dsc,
                                              const lv_point_t * point, uint32_t unicode_letter)
 {
+    LV_CHECK_ARG(layer != NULL, return);
+    LV_CHECK_ARG(dsc != NULL, return);
+    LV_CHECK_ARG(point != NULL, return);
+
     if(dsc->opa <= LV_OPA_MIN) return;
     if(dsc->font == NULL) {
         LV_LOG_WARN("dsc->font == NULL");
@@ -151,13 +171,13 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_character(lv_layer_t * layer, lv_draw_label_d
 
     lv_font_glyph_dsc_t g;
 
-    lv_font_get_glyph_dsc(dsc->font, &g, unicode_letter, 0);
+    lv_font_get_glyph_dsc_internal(dsc->font, &g, unicode_letter, 0);
 
     lv_area_t a;
     a.x1 = point->x;
     a.y1 = point->y;
     a.x2 = a.x1 + g.adv_w;
-    a.y2 = a.y1 + lv_font_get_line_height(g.resolved_font ? g.resolved_font : dsc->font);
+    a.y2 = a.y1 + lv_font_get_line_height_internal(g.resolved_font ? g.resolved_font : dsc->font);
 
     /*lv_draw_label needs UTF8 text so convert the Unicode character to an UTF8 string */
     uint32_t letter_buf[2];
@@ -179,6 +199,10 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_character(lv_layer_t * layer, lv_draw_label_d
 
 void LV_ATTRIBUTE_FAST_MEM lv_draw_letter(lv_layer_t * layer, lv_draw_letter_dsc_t * dsc, const lv_point_t * point)
 {
+    LV_CHECK_ARG(layer != NULL, return);
+    LV_CHECK_ARG(dsc != NULL, return);
+    LV_CHECK_ARG(point != NULL, return);
+
     if(dsc->opa <= LV_OPA_MIN) return;
     if(dsc->font == NULL) {
         LV_LOG_WARN("dsc->font == NULL");
@@ -190,7 +214,7 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_letter(lv_layer_t * layer, lv_draw_letter_dsc
     LV_PROFILER_DRAW_BEGIN;
     lv_font_glyph_dsc_t g;
 
-    lv_font_get_glyph_dsc(font, &g, dsc->unicode, 0);
+    lv_font_get_glyph_dsc_internal(font, &g, dsc->unicode, 0);
 
     font = g.resolved_font ? g.resolved_font : dsc->font;
 
@@ -198,7 +222,7 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_letter(lv_layer_t * layer, lv_draw_letter_dsc
     a.x1 = point->x;
     a.y1 = point->y;
     a.x2 = a.x1 + g.adv_w;
-    a.y2 = a.y1 + lv_font_get_line_height(font);
+    a.y2 = a.y1 + lv_font_get_line_height_internal(font);
 
     dsc->pivot.x = g.adv_w / 2 ;
     dsc->pivot.y = font->line_height - font->base_line;
@@ -215,6 +239,10 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                                       const lv_area_t * coords,
                                       lv_draw_glyph_cb_t cb)
 {
+    LV_CHECK_ARG(t != NULL, return);
+    LV_CHECK_ARG(dsc != NULL, return);
+    LV_CHECK_ARG(coords != NULL, return);
+
     lv_draw_dsc_base_t * base_dsc = t->draw_dsc;
     const lv_font_t * font = dsc->font;
     int32_t w;
@@ -226,7 +254,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
     lv_text_align_t align = dsc->align;
     lv_base_dir_t base_dir = dsc->bidi_dir;
 
-    lv_bidi_calculate_align(&align, &base_dir, dsc->text);
+    lv_bidi_calculate_align_internal(&align, &base_dir, dsc->text);
 
     if((dsc->flag & LV_TEXT_FLAG_EXPAND) == 0) {
         /*Normally use the label's width as width*/
@@ -251,11 +279,10 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
         }
     }
 
-    int32_t line_height_font = lv_font_get_line_height(font);
+    int32_t line_height_font = lv_font_get_line_height_internal(font);
     int32_t line_height = line_height_font + dsc->line_space;
 
     /*Init variables for the first line*/
-    int32_t line_width = 0;
     lv_point_t pos;
     lv_point_set(&pos, coords->x1, coords->y1);
 
@@ -309,28 +336,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
         if(dsc->text[line_start] == '\0') return;
     }
 
-    /*Align to middle*/
-    if(align == LV_TEXT_ALIGN_CENTER) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-        /*For HarfBuzz fonts, defer width calculation to the shaping path
-         *to avoid shaping the text twice (once for width, once for rendering).*/
-        if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-        {
-            line_width = lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &attributes);
-            pos.x += (lv_area_get_width(coords) - line_width) / 2;
-        }
-    }
-    /*Align to the right*/
-    else if(align == LV_TEXT_ALIGN_RIGHT) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-        if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-        {
-            line_width = lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &attributes);
-            pos.x += lv_area_get_width(coords) - line_width;
-        }
-    }
+    label_align_line(&pos, coords, align, &dsc->text[line_start], line_end - line_start, font, &attributes);
 
     uint32_t sel_start = dsc->sel_start;
     uint32_t sel_end = dsc->sel_end;
@@ -394,8 +400,14 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
 #endif
 
 
+        bool line_drawn_shaped = false;
+
 #if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-        /*HarfBuzz shaping path: shape the entire line and render shaped glyphs*/
+        /*Shaping path. HarfBuzz turns the line into positioned glyphs in one
+         *pass: characters may fuse into one glyph or expand into several, and
+         *marks may be repositioned around the letter they attach to. Each
+         *glyph records the character it came from (its cluster), which is how
+         *selection and hit-testing map glyphs back to text.*/
         if(lv_freetype_is_harfbuzz_font(font)) {
             uint32_t line_byte_len = line_end - line_start;
             /* Strip trailing newline/carriage return from shaping input
@@ -403,6 +415,17 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
             while(line_byte_len > 0 && (bidi_txt[line_byte_len - 1] == '\n' || bidi_txt[line_byte_len - 1] == '\r')) {
                 line_byte_len--;
             }
+            /*The character loop consumes recolor markers; the shaping path would draw them*/
+            bool has_recolor = false;
+            if(dsc->flag & LV_TEXT_FLAG_RECOLOR) {
+                for(uint32_t ri = 0; ri < line_byte_len; ri++) {
+                    if(bidi_txt[ri] == LV_TXT_COLOR_CMD[0]) {
+                        has_recolor = true;
+                        break;
+                    }
+                }
+            }
+
             /* When BIDI is enabled, bidi_txt is always in visual order (either
              * pre-bided or processed by lv_bidi_process_paragraph above).
              * Force LTR in HarfBuzz to prevent double-reordering. */
@@ -411,7 +434,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
 #else
             lv_base_dir_t hb_dir = LV_BASE_DIR_AUTO;
 #endif
-            lv_hb_shaped_text_t * shaped = lv_hb_shape_text(font, bidi_txt, line_byte_len, hb_dir);
+            lv_hb_shaped_text_t * shaped = has_recolor ? NULL : lv_hb_shape_text(font, bidi_txt, line_byte_len, hb_dir);
             if(shaped) {
                 /*Compute line width from shaped result and apply alignment.
                  *This avoids a separate lv_text_get_width() call which would shape the text again.*/
@@ -419,7 +442,16 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                     int32_t shaped_width = 0;
                     for(uint32_t wi = 0; wi < shaped->count; wi++) {
                         int32_t gw = shaped->glyphs[wi].x_advance;
-                        if(gw > 0) shaped_width += gw + dsc->letter_space;
+                        /*Must match the render loop below, or a centred line is
+                         *drawn at a different width than it measured*/
+                        if(shaped->glyphs[wi].glyph_id == 0 && font->fallback != NULL) {
+                            uint32_t ofs = shaped->glyphs[wi].cluster;
+                            uint32_t letter = lv_text_encoded_next(bidi_txt, &ofs);
+                            if(letter) gw = lv_font_get_glyph_width(font->fallback, letter, 0);
+                        }
+                        bool cluster_end = (wi + 1 >= shaped->count) ||
+                                           (shaped->glyphs[wi + 1].cluster != shaped->glyphs[wi].cluster);
+                        shaped_width += gw + (cluster_end ? dsc->letter_space : 0);
                     }
                     if(shaped_width > 0) shaped_width -= dsc->letter_space;
                     if(align == LV_TEXT_ALIGN_CENTER) {
@@ -536,15 +568,19 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                         draw_letter_dsc.g = NULL;
                     }
 
-                    pos.x += x_adv + dsc->letter_space;
+                    /*Spacing goes between clusters. Adding it after every glyph
+                     *would push a mark away from the letter it belongs to.*/
+                    bool cluster_end = (si + 1 >= shaped->count) ||
+                                       (shaped->glyphs[si + 1].cluster != gi->cluster);
+                    pos.x += x_adv + (cluster_end ? dsc->letter_space : 0);
                 }
                 lv_hb_shaped_text_destroy(shaped);
-                goto harfbuzz_next_line;
+                line_drawn_shaped = true;
             }
         }
 #endif /*LV_USE_FREETYPE && LV_USE_HARFBUZZ*/
 
-        while(next_char_offset < remaining_len && next_char_offset < line_end - line_start) {
+        while(!line_drawn_shaped && next_char_offset < remaining_len && next_char_offset < line_end - line_start) {
             uint32_t logical_char_pos = 0;
 
             /* Check if the text selection is enabled */
@@ -641,7 +677,7 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                 logical_char_pos -= (LABEL_RECOLOR_PAR_LENGTH + 1);
             }
 
-            lv_font_get_glyph_dsc(font, &glyph_dsc, letter, letter_next);
+            lv_font_get_glyph_dsc_internal(font, &glyph_dsc, letter, letter_next);
             letter_w = lv_text_is_marker(letter) ? 0 : glyph_dsc.adv_w;
 
             /*Always set the bg_coordinates for placeholder drawing*/
@@ -687,17 +723,12 @@ void lv_draw_label_iterate_characters(lv_draw_task_t * t, const lv_draw_label_ds
                 draw_letter_dsc.color = dsc->color;
             }
 
-            lv_draw_unit_draw_letter(t, &draw_letter_dsc, &pos, font, letter, cb);
+            lv_draw_unit_draw_letter_internal(t, &draw_letter_dsc, &pos, font, letter, cb);
 
             if(letter_w > 0) {
                 pos.x += letter_w + dsc->letter_space;
             }
         }
-
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-harfbuzz_next_line:
-        ;
-#endif
 
 #if LV_USE_BIDI
         lv_free(bidi_txt);
@@ -717,29 +748,8 @@ harfbuzz_next_line:
         }
 
         pos.x = coords->x1;
-        /*Align to middle*/
-        if(align == LV_TEXT_ALIGN_CENTER) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-            /*For HarfBuzz fonts, defer width calculation to the shaping path above*/
-            if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-            {
-                line_width =
-                    lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &text_attributes);
-                pos.x += (lv_area_get_width(coords) - line_width) / 2;
-            }
-        }
-        /*Align to the right*/
-        else if(align == LV_TEXT_ALIGN_RIGHT) {
-#if LV_USE_FREETYPE && LV_USE_HARFBUZZ
-            if(!lv_freetype_is_harfbuzz_font(font))
-#endif
-            {
-                line_width =
-                    lv_text_get_width(&dsc->text[line_start], line_end - line_start, font, &text_attributes);
-                pos.x += lv_area_get_width(coords) - line_width;
-            }
-        }
+        label_align_line(&pos, coords, align, &dsc->text[line_start], line_end - line_start, font,
+                         &text_attributes);
 
         /*Go the next line position*/
         pos.y += line_height;
@@ -757,6 +767,34 @@ harfbuzz_next_line:
  **********************/
 
 /**
+ * Shift one line horizontally for centre or right alignment.
+ * @param pos        pen position for the line, moved in place
+ * @param coords     the label's area
+ * @param align      alignment of the text
+ * @param txt        start of the line
+ * @param len        length of the line in bytes
+ * @param font       font the line is drawn with
+ * @param attributes text attributes used to measure the line
+ */
+static void label_align_line(lv_point_t * pos, const lv_area_t * coords, lv_text_align_t align,
+                             const char * txt, uint32_t len, const lv_font_t * font,
+                             const lv_text_attributes_t * attributes)
+{
+    if(align != LV_TEXT_ALIGN_CENTER && align != LV_TEXT_ALIGN_RIGHT) return;
+
+    /*Shaped fonts apply the offset during shaping, avoiding a second measure*/
+    if(lv_freetype_is_harfbuzz_font(font)) return;
+
+    int32_t line_width = lv_text_get_width(txt, len, font, attributes);
+    if(align == LV_TEXT_ALIGN_CENTER) {
+        pos->x += (lv_area_get_width(coords) - line_width) / 2;
+    }
+    else {
+        pos->x += lv_area_get_width(coords) - line_width;
+    }
+}
+
+/**
  * Convert a hexadecimal characters to a number (0..15)
  * @param hex Pointer to a hexadecimal character (0..9, A..F)
  * @return the numerical value of `hex` or 0 on error
@@ -771,6 +809,23 @@ static uint8_t hex_char_to_num(char hex)
 void lv_draw_unit_draw_letter(lv_draw_task_t * t, lv_draw_glyph_dsc_t * dsc,  const lv_point_t * pos,
                               const lv_font_t * font, uint32_t letter, lv_draw_glyph_cb_t cb)
 {
+    LV_CHECK_ARG(t != NULL, return);
+    LV_CHECK_ARG(dsc != NULL, return);
+    LV_CHECK_ARG(pos != NULL, return);
+    LV_CHECK_ARG(font != NULL, return);
+    LV_CHECK_ARG(cb != NULL, return);
+    lv_draw_unit_draw_letter_internal(t, dsc, pos, font, letter, cb);
+
+}
+
+void lv_draw_unit_draw_letter_internal(lv_draw_task_t * t, lv_draw_glyph_dsc_t * dsc,  const lv_point_t * pos,
+                                       const lv_font_t * font, uint32_t letter, lv_draw_glyph_cb_t cb)
+{
+    LV_ASSERT(t != NULL);
+    LV_ASSERT(dsc != NULL);
+    LV_ASSERT(pos != NULL);
+    LV_ASSERT(font != NULL);
+    LV_ASSERT(cb != NULL);
     lv_font_glyph_dsc_t g;
 
     if(lv_text_is_marker(letter)) /*Markers are valid letters but should not be rendered.*/
@@ -778,11 +833,12 @@ void lv_draw_unit_draw_letter(lv_draw_task_t * t, lv_draw_glyph_dsc_t * dsc,  co
 
     LV_PROFILER_DRAW_BEGIN;
     if(dsc->g == NULL) {
-        /*The local glyph dsc never outlives this call: dsc->g is reset to NULL at exit*/
-        /*cppcheck-suppress autoVariables*/
+        /* cppcheck-suppress autoVariables
+         * here we store a stack variable on a pointer that outlives this function
+         * we correctly reset it to NULL at `exit:` but cpp-check chokes on it and warns us*/
         dsc->g = &g;
         /*If the glyph dsc is not set then get it from the font*/
-        bool g_ret = lv_font_get_glyph_dsc(font, &g, letter, 0);
+        bool g_ret = lv_font_get_glyph_dsc_internal(font, &g, letter, 0);
         if(g_ret == false) {
             /*Add warning if the dsc is not found*/
             LV_LOG_WARN("lv_draw_letter: glyph dsc. not found for U+%" LV_PRIX32, letter);
@@ -818,11 +874,18 @@ void lv_draw_unit_draw_letter(lv_draw_task_t * t, lv_draw_glyph_dsc_t * dsc,  co
             /*Only check draw buf for bitmap glyph*/
             draw_buf = lv_draw_buf_reshape(dsc->_draw_buf, 0, g.box_w, g.box_h, LV_STRIDE_AUTO);
             if(draw_buf == NULL) {
-                if(dsc->_draw_buf) lv_draw_buf_destroy(dsc->_draw_buf);
+                if(dsc->_draw_buf) {
+                    lv_draw_buf_destroy(dsc->_draw_buf);
+                    dsc->_draw_buf = NULL;
+                }
 
                 uint32_t h = LV_ROUND_UP(g.box_h, 32); /*Assume a larger size to avoid many reallocations*/
                 draw_buf = lv_draw_buf_create_ex(font_draw_buf_handlers, g.box_w, h, LV_COLOR_FORMAT_A8, LV_STRIDE_AUTO);
                 LV_ASSERT_MALLOC(draw_buf);
+                if(!draw_buf) {
+                    LV_LOG_WARN("Failed to allocate memory for glyph draw buffer");
+                    goto exit;
+                }
                 draw_buf->header.h = g.box_h;
                 dsc->_draw_buf = draw_buf;
             }
@@ -833,7 +896,7 @@ void lv_draw_unit_draw_letter(lv_draw_task_t * t, lv_draw_glyph_dsc_t * dsc,  co
         if(g.format == LV_FONT_GLYPH_FORMAT_VECTOR) {
 
             /*Load the outline of the glyph, even if the function says bitmap*/
-            dsc->glyph_data = (void *) lv_font_get_glyph_bitmap(dsc->g, draw_buf);
+            dsc->glyph_data = (void *) lv_font_get_glyph_bitmap_internal(dsc->g, draw_buf);
             dsc->format = dsc->glyph_data ? g.format : LV_FONT_GLYPH_FORMAT_NONE;
         }
     }
@@ -845,8 +908,9 @@ void lv_draw_unit_draw_letter(lv_draw_task_t * t, lv_draw_glyph_dsc_t * dsc,  co
     /*cppcheck-suppress autoVariables*/
     dsc->letter_coords = &letter_coords;
     cb(t, dsc, NULL, NULL);
+    dsc->letter_coords = NULL;
 
-    lv_font_glyph_release_draw_data(dsc->g);
+    lv_font_glyph_release_draw_data_internal(dsc->g);
 
 exit:
     if(dsc->g == &g) {
